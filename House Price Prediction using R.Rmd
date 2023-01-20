@@ -1,0 +1,516 @@
+---
+title: "Stat501_final"
+author: "Kunal Kumar, Kartik Gupta, Sahil Yerawar, Varun Shah"
+date: "2022-12-24"
+output:
+  pdf_document: 
+    fig_width: 10
+    fig_height: 6
+    fig_crop: no
+    keep_tex: yes
+  html_document:
+    df_print: paged
+---
+
+# Introduction :
+
+In this project report, we try to analyse the Housing price data-set. It contains the housing data for real estate markets in Sydney and Melbourne. The data-set contains unknown data trends. There are various attributes that are suspected to be influencing the housing prices linearly. Here in the project, we try to find these predictor variables based on which, we try to estimate the house prices.
+
+## Importing all neccesary libraries
+
+```{r}
+#install.packages("caret")
+library(ggplot2)
+library(tidyverse)
+library(corrplot)
+library(lubridate)
+library(gridExtra)
+library(caTools)
+library(GGally)
+library(caret)
+```
+
+## Importing dataset
+The dataset consists of house prices from King County an area in the US State of Washington, this data also covers Seattle. The dataset was obtained from Kaggle. Prediction of property prices is becoming increasingly important and beneficial. Considering the data provided, we are wrangling a large set of property sales records stored in an unknown format and with unknown data quality issues.
+
+**Columns** : date, price, bedrooms, bathrooms, sqft_living, sqft_lot, floors, waterfront, view, condition, grade, sqft_above, sqft_basement, yr_built, yr_renovated, zipcode, lat, long, sqft_living15, sqft_lot15
+
+```{r}
+data <- read.csv(file = 'house_prediction_data.csv')
+head(data)
+```
+
+```{r}
+print(paste("Number of records: ", nrow(data)))
+print(paste("Number of features: ", ncol(data)))
+```
+
+
+```{r}
+summary(data)
+```
+
+
+## Modifying the data
+When we look at house prices, we believe that price has strong dependency on age and number of times its been renovated. 
+Hence, we will add these two information on our dataset.
+
+```{r}
+
+saleDate = mdy( data$date )
+data$saleDateYr = as.integer(year(saleDate))
+data$age = data$saleDateYr - data$yr_built
+
+data$reno = ifelse( data$yr_renovated==0,0,1 )
+data$reno = as.numeric( data$reno )
+
+```
+
+
+## Feature Selectipn 
+We want to filter out few columns which we believe should be our independent variables for our model.
+Thus, we will create a separate dataframe filtering out these columns.
+
+```{r}
+
+maindf <- data[, c( "bedrooms", "bathrooms", "sqft_living", "view", "grade", "age", "waterfront", "long", "lat", "zipcode",
+                   "condition", "sqft_above", "sqft_living15", "reno", "price", "sqft_lot", "floors" ) ]
+
+head(maindf,10)
+```
+
+##Checking Null values
+Let's check if we have any Null values which will be needed to weed out as part of our data cleaning. 
+
+```{r}
+sum(is.na(maindf))
+```
+
+
+## Diving into train and test data
+
+```{r}
+set.seed(123)   #  set seed to ensure you always have same random numbers generated
+
+trainIndex <- createDataPartition(maindf$price, p=0.8, list=FALSE)
+train_data <- maindf[ trainIndex,]
+test_data <- maindf[-trainIndex,]
+```
+
+
+## Correlation matrix
+
+```{r,echo = FALSE}
+round(cor(train_data), digits = 2 )
+```
+
+
+
+```{r, echo=FALSE, out.width="50%"}
+#install.packages("ggcorrplot")
+library(ggcorrplot)
+corr <- round(cor(train_data), 1)
+
+# Plot
+ggcorrplot(corr,
+           type = "lower",
+           lab = TRUE, 
+           lab_size = 5,  
+           colors = c("tomato2", "white", "springgreen3"),
+           title="Correlogram of Housing Dataset", 
+           ggtheme=theme_bw)
+```
+
+
+According to our corrplot, price is positively correlated with bedroom, bathroom, sqft_living, view , grade, waterfront, sqft_above, sqft_basement, lat, sqft_living 15 and reno columns.
+
+
+## Scatterplot 
+Let's plot few scatter plot using our filtered columns for viewing the distribution and prediction with price.
+
+```{r, fig.height=20}
+p1=ggplot(data = train_data, aes(x = bedrooms, y = price)) +
+  geom_jitter() +  geom_smooth(method = "lm", formula = y~x, se = FALSE)+labs(title="Scatter plot of Bedrooms and Price", x="bedrooms", y="Price")
+
+p2=ggplot(data = train_data, aes(x = bathrooms, y = price)) +
+  geom_jitter() +  geom_smooth(method = "lm", formula = y~x, se = FALSE)+labs(title="Scatter plot of Bathrooms and Price", x="bathrooms", y="Price")
+
+p3=ggplot(data = train_data, aes(x = sqft_living, y = price)) +
+  geom_jitter() +  geom_smooth(method = "lm", formula = y~x, se = FALSE)+labs(title="Scatter plot of Sqft_living and Price", x="sqft_living", y="Price")
+
+p4=ggplot(data = train_data, aes(x = age, y = price)) +
+  geom_jitter() +  geom_smooth(method = "lm", formula = y~x, se = FALSE)+labs(title="Scatter plot of Age and Price", x="age", y="Price")
+
+p5=ggplot(data = train_data, aes(x = floors, y = price)) +
+  geom_jitter() +  geom_smooth(method = "lm", formula = y~x, se = FALSE)+labs(title="Scatter plot of Floors and Price", x="floors", y="Price")
+
+p6=ggplot(data = train_data, aes(x = reno, y = price)) +
+  geom_jitter() +  geom_smooth(method = "lm", formula = y~x, se = FALSE)+labs(title="Scatter plot of Renovation and Price", x="reno", y="Price")
+
+p7=ggplot(data = train_data, aes(x = view, y = price)) +
+  geom_jitter() +  geom_smooth(method = "lm", formula = y~x, se = FALSE)+labs(title="Scatter plot of View and Price", x="view", y="Price")
+
+p8=ggplot(data = train_data, aes(x = grade, y = price)) +
+  geom_jitter() +  geom_smooth(method = "lm", formula = y~x, se = FALSE)+labs(title="Scatter plot of Grade and Price", x="grade", y="Price")
+
+grid.arrange( p1, p2, p3, p4, p5, p6, p7, p8, nrow = 4 )
+```
+
+
+## Density plot 
+
+We have used density plot on few example columns to view the distribution and type of data.  
+
+```{r, fig.width=12}
+library(e1071)
+
+par(mfrow=c(2, 3)) 
+
+plot(density(train_data$bedrooms), main="Density Plot: Bedrooms", ylab="Frequency",
+     sub=paste("Skewness:", round(e1071::skewness(train_data$bedrooms), 2)))  
+polygon(density(train_data$bedrooms), col="green")
+
+plot(density(train_data$sqft_living), main="Density Plot: sqft_living", ylab="Frequency",
+     sub=paste("Skewness:", round(e1071::skewness(train_data$sqft_living), 2)))  
+polygon(density(train_data$sqft_living), col="orange")
+
+plot(density(train_data$age), main="Density Plot: age", ylab="Frequency",
+     sub=paste("Skewness:", round(e1071::skewness(train_data$age), 2)))  
+polygon(density(train_data$age), col="green")
+
+plot(density(train_data$reno), main="Density Plot: reno", ylab="Frequency",
+     sub=paste("Skewness:", round(e1071::skewness(train_data$reno), 2)))  
+polygon(density(train_data$reno), col="orange")
+
+plot(density(train_data$floors), main="Density Plot: floors", ylab="Frequency",
+     sub=paste("Skewness:", round(e1071::skewness(train_data$floors), 2)))  
+polygon(density(train_data$floors), col="green")
+
+plot(density(train_data$view), main="Density Plot: view", ylab="Frequency",
+     sub=paste("Skewness:", round(e1071::skewness(train_data$view), 2)))  
+polygon(density(train_data$view), col="orange")
+
+```
+
+## Boxplot for checking outliers
+
+We have used boxplot to view the possible outliers for few example columns. 
+
+```{r, fig.width=12, fig.height=10}
+par(mfrow=c(2, 3))  # divide graph area in 2 columns
+boxplot(train_data$bedrooms, main="Bedrooms")
+boxplot(train_data$sqft_living, main="sqft_living")
+boxplot(train_data$grade, main="grade")
+boxplot(train_data$bathrooms, main="bathrooms")
+boxplot(train_data$view, main="view")
+boxplot(train_data$age, main="age")
+```
+
+
+## Removing outliers :
+
+We see that we have a significantly large number of outliers from the above boxplot. Outliers significantly affect our predictive models. To understand the impact of outliers, we will be plotting scatterplot with and without outliers. 
+
+Using the price data, we have removed outliers from the datset to have more accurate results.
+
+```{r}
+outliers = boxplot(train_data$price,plot=FALSE)$out
+outliers_data =train_data[which(train_data$price %in% outliers),]
+train_data1 = train_data[-which(train_data$price %in% outliers),]
+```
+
+## Visualization of scatter plot with and without outliers for some example columns :
+
+```{r}
+par(mfrow=c(1, 2))
+plot(train_data$bedrooms, train_data$price, main="With Outliers", xlab="bedrooms", ylab="price", pch="o", col="green", cex=2)
+abline(lm(price ~ bedrooms, data=train_data), col="blue", lwd=3, lty=2)
+
+# Plot of original data without outliers. Note the change of slope.
+
+plot(train_data1$bedrooms, train_data1$price, main="Outliers removed", xlab="bedrooms", ylab="price", pch="*", col="red", cex=2)
+abline(lm(price ~ bedrooms, data=train_data1), col="blue", lwd=3, lty=2)
+```
+
+```{r}
+par(mfrow=c(1, 2))
+plot(train_data$sqft_living, train_data$price, main="With Outliers", xlab="sqft_living", ylab="price", pch="o", col="green", cex=2)
+abline(lm(price ~ sqft_living, data=train_data), col="blue", lwd=3, lty=2)
+
+# Plot of original data without outliers. Note the change of slope.
+
+plot(train_data1$sqft_living, train_data1$price, main="Outliers removed", xlab="sqft_living", ylab="price", pch="*", col="red", cex=2)
+abline(lm(price ~ sqft_living, data=train_data1), col="blue", lwd=3, lty=2)
+```
+
+
+```{r}
+par(mfrow=c(1, 2))
+plot(train_data$view, train_data$price, main="With Outliers", xlab="view", ylab="price", pch="o", col="green", cex=2)
+abline(lm(price ~ view, data=train_data), col="blue", lwd=3, lty=2)
+
+# Plot of original data without outliers. Note the change of slope.
+
+plot(train_data1$view, train_data1$price, main="Outliers removed", xlab="view", ylab="price", pch="*", col="red", cex=2)
+abline(lm(price ~ view, data=train_data1), col="blue", lwd=3, lty=2)
+```
+
+
+```{r}
+par(mfrow=c(1, 2))
+plot(train_data$grade, train_data$price, main="With Outliers", xlab="grade", ylab="price", pch="o", col="green", cex=2)
+abline(lm(price ~ grade, data=train_data), col="blue", lwd=3, lty=2)
+
+# Plot of original data without outliers. Note the change of slope.
+
+plot(train_data1$grade, train_data1$price, main="Outliers removed", xlab="grade", ylab="price", pch="*", col="red", cex=2)
+abline(lm(price ~ grade, data=train_data1), col="blue", lwd=3, lty=2)
+```
+
+
+```{r}
+par(mfrow=c(1, 2))
+plot(train_data$bathrooms, train_data$price, main="With Outliers", xlab="bathrooms", ylab="price", pch="o", col="green", cex=2)
+abline(lm(price ~ bathrooms, data=train_data), col="blue", lwd=3, lty=2)
+
+# Plot of original data without outliers. Note the change of slope.
+
+plot(train_data1$bathrooms, train_data1$price, main="Outliers removed", xlab="bathrooms", ylab="price", pch="*", col="red", cex=2)
+abline(lm(price ~ bathrooms, data=train_data1), col="blue", lwd=3, lty=2)
+```
+
+```{r}
+par(mfrow=c(1, 2))
+plot(train_data$age, train_data$price, main="With Outliers", xlab="age", ylab="price", pch="o", col="green", cex=2)
+abline(lm(price ~ age, data=train_data), col="blue", lwd=3, lty=2)
+
+# Plot of original data without outliers. Note the change of slope.
+
+plot(train_data1$age, train_data1$price, main="Outliers removed", xlab="age", ylab="price", pch="*", col="red", cex=2)
+abline(lm(price ~ age, data=train_data1), col="blue", lwd=3, lty=2)
+```
+
+
+```{r}
+par(mfrow=c(1, 2))
+plot(train_data$waterfront, train_data$price, main="With Outliers", xlab="waterfront", ylab="price", pch="o", col="green", cex=2)
+abline(lm(price ~ waterfront, data=train_data), col="blue", lwd=3, lty=2)
+
+# Plot of original data without outliers. Note the change of slope.
+
+plot(train_data1$waterfront, train_data1$price, main="Outliers removed", xlab="waterfront", ylab="price", pch="*", col="red", cex=2)
+abline(lm(price ~ waterfront, data=train_data1), col="blue", lwd=3, lty=2)
+```
+
+
+```{r}
+par(mfrow=c(1, 2))
+plot(train_data$sqft_above, train_data$price, main="With Outliers", xlab="sqft_above", ylab="price", pch="o", col="green", cex=2)
+abline(lm(price ~ sqft_above, data=train_data), col="blue", lwd=3, lty=2)
+
+# Plot of original data without outliers. Note the change of slope.
+
+plot(train_data1$sqft_above, train_data1$price, main="Outliers removed", xlab="sqft_above", ylab="price", pch="*", col="red", cex=2)
+abline(lm(price ~ sqft_above, data=train_data1), col="blue", lwd=3, lty=2)
+```
+
+```{r}
+par(mfrow=c(1, 2))
+plot(train_data$lat, train_data$price, main="With Outliers", xlab="lat", ylab="price", pch="o", col="green", cex=2)
+abline(lm(price ~ lat, data=train_data), col="blue", lwd=3, lty=2)
+
+# Plot of original data without outliers. Note the change of slope.
+
+plot(train_data1$lat, train_data1$price, main="Outliers removed", xlab="lat", ylab="price", pch="*", col="red", cex=2)
+abline(lm(price ~ lat, data=train_data1), col="blue", lwd=3, lty=2)
+```
+
+```{r}
+par(mfrow=c(1, 2))
+plot(train_data$sqft_living15, train_data$price, main="With Outliers", xlab="sqft_living15", ylab="price", pch="o", col="green", cex=2)
+abline(lm(price ~ sqft_living15, data=train_data), col="blue", lwd=3, lty=2)
+
+# Plot of original data without outliers. Note the change of slope.
+
+plot(train_data1$sqft_living15, train_data1$price, main="Outliers removed", xlab="sqft_living15", ylab="price", pch="*", col="red", cex=2)
+abline(lm(price ~ sqft_living15, data=train_data1), col="blue", lwd=3, lty=2)
+```
+
+From these scatter plots, we conclude that the relationship between price and `bedroom`, `bathroom`, `sqft_living`, `sqft_above`, `lat` and `sqft_living15` is linear.
+From the above plots, we could see that the change in slope of the best fit line after removing the outliers. This is due to adjust the large errors generated due to outliers for the regression line.
+
+
+# Univariate linear regression plot between price and other independent variables
+
+## Multivariate plot 
+
+From the corrplot, we picked the independent variables which have positive and higher values wrt price. We will be fitting linear regression to find the accuracy on training and test data.
+
+```{r}
+linearmodel = lm(price ~ bedrooms+bathrooms+sqft_living+view+grade+sqft_lot+age+floors+waterfront, 
+                 data = train_data1)
+summary(linearmodel)
+```
+
+Using the above columns, we see that the relationship between price and the chosen independent variable is moderately strong as R-squared value is not too high. Also, the p-value of `sqft_lot`    is not very significant. Hence, we could drop it. 
+
+
+## Detecting influencial outliers
+
+Declaring an observation as an outlier based on a just one (not pivotal) feature could lead to unrealistic inferences. When we look at one variable if it is extreme it or not, it should be beeter looked collectively by considering all the features. These are influencial outliers which effect the data predictions by producing unjustified results. We used cooks distance to find out such outlier's.
+
+```{r}
+cooksd <- cooks.distance(linearmodel)
+```
+
+
+Now we plot the cook’s distance.
+```{r, fig.height = 8, fig.width = 12}
+par(mfrow=c(1, 1))
+plot(cooksd, main="Influential Obs by Cooks distance",xlim=c(0,5000),ylim=c(0,0.1))
+axis(1, at=seq(0, 5000, 2000))
+axis(2, at=seq(0, 0.1, 0.01))
+abline(h = 4*mean(cooksd, na.rm=T), col="green")  
+text(x=1:length(cooksd)+1,y=cooksd,labels=ifelse(cooksd>4*mean(cooksd,na.rm=T),names(cooksd),""), col="red") 
+```
+
+we find out the influential points in the data and take out influencial outliers.
+
+```{r}
+influential <- as.numeric(names(cooksd)[(cooksd > 4*mean(cooksd, na.rm=T))])  # influential row numbers
+head(train_data[influential, ],10)
+
+influential_data = train_data[influential, ]
+
+influencial_outliers=inner_join(outliers_data,influential_data)
+
+train_data2 = rbind( train_data1,influencial_outliers)
+```
+
+# Modeling on training data :
+
+## Training on train data and its accuracy
+
+We will try to fit the model with few other variables than last time with removed outliers value and stop it when we get maximum R-squared value.
+
+```{r}
+linearmodel_trn = lm( data = train_data2, price~bedrooms+bathrooms+sqft_living+view+grade+age+waterfront+long+lat+zipcode+condition+sqft_above+sqft_living15+reno)
+summary(linearmodel_trn)
+```
+
+### Model diagonistics on training predictor : 
+
+```{r}
+xyplot(resid(linearmodel_trn)~fitted(linearmodel_trn))
+```
+
+```{r}
+histogram(~residuals(linearmodel_trn),width=200000)
+```
+
+
+```{r, eval = FALSE}
+library("mosaic")
+qqmath(~resid(linearmodel_trn))
+ladd(panel.qqmathline(resid(linearmodel_trn)))
+```
+
+From the above residual vs fitted plot, we could see that data is scattered across zero line. Hence, zero variance can be assumed. 
+The histogram and the qq-plot shows a normal distribution, if we ignore the outliers. This could help in validating the normality assumption that is necessary for the linear regression model.
+Moreover, we con't have any time series data. Hence, we can assume independece event. The sample size is big so randomization could be considered. Finally, as we see moderately high R-squared value of training model summary, we could confirm that linearity holds.
+
+Thus, we could confirm that the linear regression model satisfies in the context. 
+
+### Accuracy : 
+```{r}
+y_pred = linearmodel_trn$fitted.values
+y_true = train_data2$price
+
+tally_table=data.frame(actual = y_true, predicted = y_pred)
+mean_error = mean(abs(tally_table$actual-tally_table$predicted)/tally_table$actual)
+
+accuracy = 1-mean_error
+
+print(paste("The accuracy of the train data is = ", accuracy, " or = ",round(accuracy*100, digits = 2), "%" )) 
+```
+
+
+## Result on test data and its accuracy
+
+### Removing outliers on test data :
+
+```{r}
+outliers = boxplot(test_data$price,plot=FALSE)$out
+outliers_data =test_data[which(test_data$price %in% outliers),]
+test_data1 = test_data[-which(test_data$price %in% outliers),]
+
+linearmodel_tst = lm(price ~ bedrooms+bathrooms+sqft_living+view+grade+sqft_lot+age+floors+waterfront, 
+                 data = test_data1)
+
+cooksd <- cooks.distance(linearmodel_tst)
+influential <- as.numeric(names(cooksd)[(cooksd > 4*mean(cooksd, na.rm=T))])  # influential row numbers
+influential_data = test_data[influential, ]
+
+influencial_outliers=inner_join(outliers_data,influential_data)
+
+test_data2 = rbind( test_data1,influencial_outliers)
+```
+
+## Prediction on test data
+
+```{r}
+linearmodel_tst = lm( data = test_data2, price~bedrooms+bathrooms+sqft_living+view+grade+age+waterfront+long+lat+zipcode+condition+sqft_above+sqft_living15+reno)
+summary(linearmodel_tst)
+```
+
+
+### Model diagonistics on test predictor : 
+
+```{r}
+xyplot(resid(linearmodel_tst)~fitted(linearmodel_tst))
+```
+
+```{r}
+histogram(~residuals(linearmodel_tst),width=200000)
+```
+
+
+```{r, eval = FALSE}
+library("mosaic")
+qqmath(~resid(linearmodel_tst))
+ladd(panel.qqmathline(resid(linearmodel_tst)))
+```
+
+From the above residual vs fitted plot, we could see that data is scattered across zero line. Hence, zero variance can be assumed. 
+The histogram and the qq-plot shows a normal distribution, if we ignore the outliers. This could help in validating the normality assumption that is necessary for the linear regression model.
+Moreover, we con't have any time series data. Hence, we can assume independence event. The sample size is big so randomization could be considered. Finally, as we see moderately high R-squared value of training model summary, we could confirm that linearity holds.
+
+Thus, we could confirm that the linear regression model satisfies in the context. 
+
+
+### Test Accuracy : 
+```{r}
+y_pred = linearmodel_tst$fitted.values
+y_true = test_data2$price
+
+tally_table=data.frame(actual = y_true, predicted = y_pred)
+mean_error = mean(abs(tally_table$actual-tally_table$predicted)/tally_table$actual)
+
+accuracy = 1-mean_error
+
+print(paste("The accuracy of the test data is = ", accuracy, " or = ",round(accuracy*100, digits = 2), "%" )) 
+```
+
+
+# Conclusions :
+From the results of the tests that have been carried out, we can conclude that model have produced good accuracy on training and testing data. Hence, the selection of independent variables are based on correlation plot and the factors which affect the housing price in general. We saw an accuracy of 80% approx. for both our training and testing data. Hence, we could conclude that our model is predicting quite well.
+
+However, to get the maximum model, process improvements need to be made again, one of which is checking the model for the trend of overfitting / underfitting models and modeling with other predictors like logistic regression, bayesian methods etc.
+
+
+# References :
+1. https://www.kaggle.com/code/ysthehurricane/house-price-prediction-using-r-programming/notebook
+
+2. https://www.statology.org/
+
+3. https://rstudio-pubs-static.s3.amazonaws.com/ 
