@@ -1,6 +1,6 @@
 ---
 title: "Stat501_final"
-author: "Kunal Kumar, Kartik Gupta, Sahil Yerawar, Varun Shah"
+author: "Kunal Kumar"
 date: "2022-12-24"
 output:
   pdf_document: 
