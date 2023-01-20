@@ -1,5 +1,5 @@
 ---
-title: "Stat501_final"
+title: "House price prediction using R"
 author: "Kunal Kumar"
 date: "2022-12-24"
 output:
